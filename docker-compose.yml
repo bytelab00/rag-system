@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+
+  ingestion:
+    build: ./ingestion-service
+    container_name: ingestion-service
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data/ingestion:/app/data
+    depends_on:
+      - embedding
+    networks:
+      - rag-network
+
+  embedding:
+    build: ./embedding-service
+    container_name: embedding-service
+    ports:
+      - "8002:8002"
+    environment:
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - VECTORDB_URL=http://vectordb:8003
+    networks:
+      - rag-network
+
+  vectordb:
+    build: ./vectordb-service
+    container_name: vectordb-service
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./data/chromadb:/app/chromadb
+    networks:
+      - rag-network
+
+  query:
+    build: ./query-service
+    container_name: query-service
+    ports:
+      - "8004:8004"
+    environment:
+      - EMBEDDING_SERVICE_URL=http://embedding:8002
+      - VECTORDB_SERVICE_URL=http://vectordb:8003
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3
+    depends_on:
+      - embedding
+      - vectordb
+      - ollama
+    networks:
+      - rag-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    networks:
+      - rag-network
+
+networks:
+  rag-network:
+    driver: bridge
