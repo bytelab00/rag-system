@@ -1,5 +1,6 @@
 import os
 import requests
+import time
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from PyPDF2 import PdfReader
@@ -44,20 +45,29 @@ def split_text(text: str):
     )
     return splitter.split_text(text)
 
-def send_chunks(doc_id: int, chunks: list):
-    payload = {
-        "doc_id": doc_id,
-        "chunks": chunks
-    }
+def send_chunks(doc_id: int, chunks: list, retries=5, delay=5):
+    """
+    Send chunks to Embedding Service with retry if service is not ready.
+    retries: number of retry attempts
+    delay: seconds between retries
+    """
+    payload = {"doc_id": doc_id, "chunks": chunks}
 
-    response = requests.post(
-        f"{EMBEDDING_SERVICE_URL}/embed-batch",
-        json=payload,
-        timeout=60
-    )
+    for attempt in range(1, retries + 1):
+        try:
+            print(f"[INFO] Sending chunks to Embedding Service (attempt {attempt})...")
+            response = requests.post(f"{EMBEDDING_SERVICE_URL}/embed-batch", json=payload, timeout=60)
+            if response.status_code == 200:
+                print(f"[INFO] Successfully sent {len(chunks)} chunks for doc_id={doc_id}")
+                return
+            else:
+                print(f"[WARN] Embedding service returned {response.status_code}: {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"[WARN] Attempt {attempt}: Embedding service not ready ({e})")
 
-    if response.status_code != 200:
-        raise RuntimeError("Embedding service failed")
+        time.sleep(delay)
+
+    raise RuntimeError("Embedding service failed after multiple retries")
 
 # ------------------ API ENDPOINTS ------------------
 
