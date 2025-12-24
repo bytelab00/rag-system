@@ -8,11 +8,8 @@ app = FastAPI(title="VectorDB Service")
 
 # ------------------ CHROMA INIT ------------------
 
-client = chromadb.Client(
-    Settings(
-        persist_directory="./chromadb",
-        anonymized_telemetry=False
-    )
+client = chromadb.PersistentClient(
+    path="./chromadb"
 )
 
 collection = client.get_or_create_collection(
@@ -20,6 +17,11 @@ collection = client.get_or_create_collection(
 )
 
 # ------------------ API ENDPOINTS ------------------
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Docker"""
+    return {"status": "ok", "service": "vectordb"}
 
 @app.post("/store")
 def store_vectors(req: StoreRequest):
@@ -41,7 +43,7 @@ def store_vectors(req: StoreRequest):
             metadatas=metadatas
         )
 
-        client.persist()
+        # No need to call persist() - PersistentClient auto-persists
 
         return {
             "message": "Vectors stored",
@@ -79,7 +81,7 @@ def delete_document_vectors(doc_id: int):
             where={"doc_id": doc_id}
         )
 
-        client.persist()
+        # No need to call persist() - PersistentClient auto-persists
 
         return {"message": "Document vectors deleted"}
 

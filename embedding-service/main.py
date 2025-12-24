@@ -34,6 +34,11 @@ def store_vectors(doc_id: int, chunks: list, embeddings: list):
 
 # ------------------ API ENDPOINTS ------------------
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Docker"""
+    return {"status": "ok", "service": "embedding", "model": MODEL_NAME}
+
 @app.post("/embed")
 def embed_text(req: EmbedRequest):
     try:
@@ -45,10 +50,25 @@ def embed_text(req: EmbedRequest):
 @app.post("/embed-batch")
 def embed_batch(req: EmbedBatchRequest):
     try:
+        # Generate embeddings
         embeddings = model.encode(req.chunks)
         embeddings = [vec.tolist() for vec in embeddings]
 
-        store_vectors(req.doc_id, req.chunks, embeddings)
+        # Correct payload for VectorDB
+        payload = {
+            "doc_id": req.doc_id,
+            "chunks": req.chunks,
+            "embeddings": embeddings
+        }
+
+        response = requests.post(
+            f"{VECTORDB_URL}/store",
+            json=payload,
+            timeout=60
+        )
+
+        if response.status_code != 200:
+            raise RuntimeError(f"VectorDB storage failed: {response.text}")
 
         return {
             "message": "Embeddings generated and stored",
@@ -56,4 +76,5 @@ def embed_batch(req: EmbedBatchRequest):
         }
 
     except Exception as e:
+        print(f"[ERROR] Batch embedding failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

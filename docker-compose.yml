@@ -10,7 +10,8 @@ services:
     volumes:
       - ./data/ingestion:/app/data
     depends_on:
-      - embedding
+      embedding:
+        condition: service_healthy
     networks:
       - rag-network
 
@@ -22,6 +23,15 @@ services:
     environment:
       - EMBEDDING_MODEL=all-MiniLM-L6-v2
       - VECTORDB_URL=http://vectordb:8003
+    depends_on:
+      vectordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8002/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     networks:
       - rag-network
 
@@ -32,6 +42,12 @@ services:
       - "8003:8003"
     volumes:
       - ./data/chromadb:/app/chromadb
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8003/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - rag-network
 
@@ -46,9 +62,12 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=llama3
     depends_on:
-      - embedding
-      - vectordb
-      - ollama
+      embedding:
+        condition: service_healthy
+      vectordb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     networks:
       - rag-network
 
@@ -59,6 +78,33 @@ services:
       - "11434:11434"
     volumes:
       - ./data/ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Start Ollama in the background
+        /bin/ollama serve &
+        # Wait for Ollama to be ready
+        until ollama list >/dev/null 2>&1; do
+          echo "Waiting for Ollama to start..."
+          sleep 1
+        done
+        # Only pull if model doesn't exist
+        if ! ollama list | grep -q "llama3"; then
+          echo "Model not found. Pulling llama3..."
+          ollama pull llama3
+          echo "Model downloaded successfully"
+        else
+          echo "Model llama3 already exists, skipping download"
+        fi
+        echo "Ollama is ready"
+        # Keep container running
+        wait
     networks:
       - rag-network
 

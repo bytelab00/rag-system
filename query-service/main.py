@@ -67,7 +67,7 @@ def call_ollama(prompt: str):
             "prompt": prompt,
             "stream": False
         },
-        timeout=120
+        timeout=1200
     )
 
     if response.status_code != 200:
