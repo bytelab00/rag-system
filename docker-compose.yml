@@ -2,6 +2,17 @@ version: "3.9"
 
 services:
 
+  frontend:
+    build: ./frontend-service
+    container_name: frontend-service
+    ports:
+      - "3000:80"
+    depends_on:
+      - ingestion
+      - query
+    networks:
+      - rag-network
+
   ingestion:
     build: ./ingestion-service
     container_name: ingestion-service
