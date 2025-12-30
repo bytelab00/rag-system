@@ -2,6 +2,7 @@ import os
 import requests
 import time
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from PyPDF2 import PdfReader
 from docx import Document
@@ -17,6 +18,22 @@ from models import (
 EMBEDDING_SERVICE_URL = "http://embedding:8002"
 
 app = FastAPI(title="Ingestion Service")
+
+# ------------------ CORS CONFIG ------------------
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://frontend:80",
+        "http://frontend-service:80"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# -----------------------------------------------
 
 # Ensure data folder exists
 os.makedirs("data", exist_ok=True)
@@ -48,15 +65,17 @@ def split_text(text: str):
 def send_chunks(doc_id: int, chunks: list, retries=5, delay=5):
     """
     Send chunks to Embedding Service with retry if service is not ready.
-    retries: number of retry attempts
-    delay: seconds between retries
     """
     payload = {"doc_id": doc_id, "chunks": chunks}
 
     for attempt in range(1, retries + 1):
         try:
             print(f"[INFO] Sending chunks to Embedding Service (attempt {attempt})...")
-            response = requests.post(f"{EMBEDDING_SERVICE_URL}/embed-batch", json=payload, timeout=60)
+            response = requests.post(
+                f"{EMBEDDING_SERVICE_URL}/embed-batch",
+                json=payload,
+                timeout=60
+            )
             if response.status_code == 200:
                 print(f"[INFO] Successfully sent {len(chunks)} chunks for doc_id={doc_id}")
                 return
