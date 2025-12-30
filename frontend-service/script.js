@@ -109,3 +109,5 @@ function removeEmptyState() {
     const empty = chatContainer.querySelector(".empty-state");
     if (empty) empty.remove();
 }
+//docker compose build frontend 
+// TODO: reset frontend container!
